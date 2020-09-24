@@ -4,7 +4,7 @@
 
 import cheerio from "cheerio";
 import qs from "querystring";
-import { fetch } from "fetch-with-proxy";
+import fetch from "fetch-with-proxy";
 
 import { Ad } from "../ad";
 import { BANNED, HTML_REQUEST_HEADERS, POSSIBLE_BAD_MARKUP } from "../constants";

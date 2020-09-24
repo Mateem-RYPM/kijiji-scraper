@@ -1,7 +1,7 @@
 // html-scraper.ts
 /* Scrapes a Kijiji ad using the public-facing website */
 
-import { fetch } from "fetch-with-proxy";
+import fetch from "fetch-with-proxy";
 import cheerio from "cheerio";
 
 import { BANNED, HTML_REQUEST_HEADERS } from "../constants";
