@@ -1,7 +1,7 @@
 // api-scraper.ts
 /* Scrapes a Kijiji ad using the mobile API */
 
-import fetch from "node-fetch";
+import { fetch } from "fetch-with-proxy";
 import cheerio from "cheerio";
 
 import { API_REQUEST_HEADERS, BANNED } from "../constants";

@@ -4,7 +4,7 @@
 
 import cheerio from "cheerio";
 import qs from "querystring";
-import fetch, { Response as FetchResponse } from "node-fetch";
+import { fetch } from "fetch-with-proxy";
 
 import { Ad } from "../ad";
 import { BANNED, HTML_REQUEST_HEADERS, POSSIBLE_BAD_MARKUP } from "../constants";
@@ -18,7 +18,7 @@ const LOCATION_REGEX = /(.+)(\/.*)$/;
 
 /* Converts a date from a Kijiji ad result into a date object
    (e.g., "< x hours ago", "yesterday", "dd/mm/yyyy") */
-   function dateFromRelativeDateString(dateString: string): Date {
+function dateFromRelativeDateString(dateString: string): Date {
     if (dateString) {
         dateString = dateString.toLowerCase().replace(/\//g, " ");
 
@@ -114,7 +114,7 @@ export class HTMLSearcher {
     /* Retrieves the URL of the first page of search results */
     private async getFirstResultPageURL(params: ResolvedSearchParameters): Promise<string> {
         if (this.firstResultPageURL === undefined) {
-            const res: FetchResponse = await fetch(
+            const res: Response = await fetch(
                 `${KIJIJI_SEARCH_URL}?${qs.stringify(params)}`,
                 { headers: HTML_REQUEST_HEADERS }
             );

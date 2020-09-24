@@ -4,7 +4,7 @@
 
 import cheerio from "cheerio";
 import qs from "querystring";
-import fetch from "node-fetch"
+import { fetch } from "fetch-with-proxy"
 
 import { Ad } from "../ad";
 import { scrapeAdElement } from "./api-scraper";

@@ -1,7 +1,7 @@
 // html-scraper.ts
 /* Scrapes a Kijiji ad using the public-facing website */
 
-import fetch from "node-fetch";
+import { fetch } from "fetch-with-proxy";
 import cheerio from "cheerio";
 
 import { BANNED, HTML_REQUEST_HEADERS } from "../constants";
@@ -61,7 +61,7 @@ function parseResponseHTML(html: string): AdInfo | null {
     // Add other attributes of interest
     // TODO: This VIP object contains much more. Worth a closer look.
     if (adData.VIP.price && typeof adData.VIP.price.amount === "number") {
-        info.attributes["price"] = adData.VIP.price.amount/100.0;
+        info.attributes["price"] = adData.VIP.price.amount / 100.0;
     }
     if (adData.VIP.adLocation) {
         info.attributes["location"] = adData.VIP.adLocation;
@@ -78,13 +78,13 @@ function parseResponseHTML(html: string): AdInfo | null {
 /* Scrapes the page at the passed Kijiji ad URL */
 export function scrapeHTML(url: string): Promise<AdInfo | null> {
     return fetch(url, { headers: HTML_REQUEST_HEADERS })
-            .then(res => {
-                if (res.status === 403) {
-                    throw new Error(BANNED);
-                }
-                return res.text();
-            })
-            .then(body => {
-                return parseResponseHTML(body);
-            });
+        .then(res => {
+            if (res.status === 403) {
+                throw new Error(BANNED);
+            }
+            return res.text();
+        })
+        .then(body => {
+            return parseResponseHTML(body);
+        });
 }

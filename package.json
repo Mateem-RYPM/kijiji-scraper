@@ -9,6 +9,7 @@
   ],
   "dependencies": {
     "cheerio": "^0.22.0",
+    "fetch-with-proxy": "^2.0.1",
     "node-fetch": "^2.6.1"
   },
   "devDependencies": {
