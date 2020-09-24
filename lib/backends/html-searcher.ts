@@ -4,7 +4,7 @@
 
 import cheerio from "cheerio";
 import qs from "querystring";
-import fetch from "fetch-with-proxy";
+import fetch, { Response as FetchResponse } from "fetch-with-proxy";
 
 import { Ad } from "../ad";
 import { BANNED, HTML_REQUEST_HEADERS, POSSIBLE_BAD_MARKUP } from "../constants";
@@ -114,7 +114,7 @@ export class HTMLSearcher {
     /* Retrieves the URL of the first page of search results */
     private async getFirstResultPageURL(params: ResolvedSearchParameters): Promise<string> {
         if (this.firstResultPageURL === undefined) {
-            const res: Response = await fetch(
+            const res: FetchResponse = await fetch(
                 `${KIJIJI_SEARCH_URL}?${qs.stringify(params)}`,
                 { headers: HTML_REQUEST_HEADERS }
             );
