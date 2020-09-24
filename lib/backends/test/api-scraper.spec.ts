@@ -1,6 +1,6 @@
-jest.mock("node-fetch");
+jest.mock("fetch-with-proxy");
 
-import fetch from "node-fetch";
+import fetch from "fetch-with-proxy";
 import { scrapeAPI as scraper } from "../api-scraper";
 import * as helpers from "../../helpers";
 

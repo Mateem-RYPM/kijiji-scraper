@@ -1,7 +1,7 @@
-jest.mock("node-fetch");
+jest.mock("fetch-with-proxy");
 
 import cheerio from "cheerio";
-import fetch from "node-fetch";
+import fetch from "fetch-with-proxy";
 import qs from "querystring";
 import * as apiScraper from "../api-scraper";
 import { ResolvedSearchParameters, SearchParameters } from "../../search";

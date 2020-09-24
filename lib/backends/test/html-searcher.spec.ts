@@ -1,6 +1,6 @@
-jest.mock("node-fetch");
+jest.mock("fetch-with-proxy");
 
-import fetch from "node-fetch";
+import fetch from "fetch-with-proxy";
 import qs from "querystring";
 import { ResolvedSearchParameters, SearchParameters } from "../../search";
 import { HTMLSearcher } from "../html-searcher";
