@@ -1,7 +1,7 @@
 // api-scraper.ts
 /* Scrapes a Kijiji ad using the mobile API */
 
-import fetch from "fetch-with-proxy";
+import fetchProxy from "fetch-with-proxy";
 import cheerio from "cheerio";
 
 import { API_REQUEST_HEADERS, BANNED } from "../constants";
@@ -105,7 +105,7 @@ export function scrapeAPI(url: string): Promise<AdInfo | null> {
     }
 
     url = `${API_ADS_ENDPOINT}/${adIdMatch[1]}`;
-    return fetch(url, { headers: API_REQUEST_HEADERS, compress: true })
+    return fetchProxy(url, { headers: API_REQUEST_HEADERS, compress: true })
         .then(res => {
             if (res.status === 403) {
                 throw new Error(BANNED);

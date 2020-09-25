@@ -4,7 +4,7 @@
 
 import cheerio from "cheerio";
 import qs from "querystring";
-import fetch, { Response as FetchResponse } from "fetch-with-proxy";
+import fetchProxy, { Response as FetchResponse } from "fetch-with-proxy";
 
 import { Ad } from "../ad";
 import { BANNED, HTML_REQUEST_HEADERS, POSSIBLE_BAD_MARKUP } from "../constants";
@@ -114,7 +114,7 @@ export class HTMLSearcher {
     /* Retrieves the URL of the first page of search results */
     private async getFirstResultPageURL(params: ResolvedSearchParameters): Promise<string> {
         if (this.firstResultPageURL === undefined) {
-            const res: FetchResponse = await fetch(
+            const res: FetchResponse = await fetchProxy(
                 `${KIJIJI_SEARCH_URL}?${qs.stringify(params)}`,
                 { headers: HTML_REQUEST_HEADERS }
             );
@@ -140,7 +140,7 @@ export class HTMLSearcher {
         const url = firstResultPageURL.replace(LOCATION_REGEX, `$1/page-${pageNum}$2`);
 
         // Search Kijiji
-        return fetch(url, { headers: HTML_REQUEST_HEADERS })
+        return fetchProxy(url, { headers: HTML_REQUEST_HEADERS })
             .then(res => {
                 if (res.status === 403) {
                     throw new Error(BANNED);

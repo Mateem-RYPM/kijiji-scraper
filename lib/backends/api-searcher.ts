@@ -4,7 +4,7 @@
 
 import cheerio from "cheerio";
 import qs from "querystring";
-import fetch from "fetch-with-proxy"
+import fetchProxy from "fetch-with-proxy"
 
 import { Ad } from "../ad";
 import { scrapeAdElement } from "./api-scraper";
@@ -48,7 +48,7 @@ export class APISearcher {
         })}`;
 
         // Search Kijiji
-        return fetch(url, { headers: API_REQUEST_HEADERS, compress: true })
+        return fetchProxy(url, { headers: API_REQUEST_HEADERS, compress: true })
             .then(res => {
                 if (res.status === 403) {
                     throw new Error(BANNED);
