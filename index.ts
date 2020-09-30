@@ -7,3 +7,4 @@ export { search, SearchParameters, SearchOptions } from "./lib/search";
 export { ScraperOptions, ScraperType } from "./lib/helpers";
 export { categories } from "./lib/categories";
 export { locations } from "./lib/locations";
+export { BANNED, POSSIBLE_BAD_MARKUP } from "./lib/constants";
