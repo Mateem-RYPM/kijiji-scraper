@@ -11,17 +11,27 @@ import { AdInfo } from "../scraper";
 const AD_ID_REGEX = /\/(\d+)$/;
 const API_ADS_ENDPOINT = "https://mingle.kijiji.ca/api/ads";
 
-function castAttributeValue(item: cheerio.Element, value: string): boolean | number | Date | string {
-    // Kijiji only returns strings for attributes. Convert to appropriate types
-    const type = (item.attribs.type || "").toLowerCase();
-    const localizedLabel = (item.attribs["localized-label"] || "").toLowerCase();
-    value = value.trim();
+function castAttributeValue(item: cheerio.Cheerio): boolean | number | Date | string | undefined {
+    const valueElem = item.find("attr\\:value");
+    if (valueElem.length === 0) {
+        return undefined;
+    }
 
-    if (localizedLabel === "yes") {
+    const type = (item.attr("type") || "").toLowerCase();
+    const value = valueElem.text().trim();
+    const localizedValue = (valueElem.attr("localized-label") || "").toLowerCase();
+
+    // Kijiji only returns strings for attributes. Convert to appropriate types
+    if (localizedValue === "yes") {
         return true;
-    } else if (localizedLabel === "no") {
+    } else if (localizedValue === "no") {
         return false;
     } else if (isNumber(value)) {
+        // Numeric values are sometimes inaccurate. For example, numberbathrooms
+        // is multipled by 10. Prefer localized version if it is also a number.
+        if (isNumber(localizedValue)) {
+            return Number(localizedValue);
+        }
         return Number(value);
     } else if (type === "date") {
         return new Date(value);
@@ -32,8 +42,13 @@ function castAttributeValue(item: cheerio.Element, value: string): boolean | num
 /* Parses the XML of a Kijiji ad for its important information */
 function parseResponseXML(xml: string): AdInfo | null {
     const $ = cheerio.load(xml);
-    const adElement = $("ad\\:ad").get();
 
+    const apiError = $("api-error > message").text();
+    if (apiError) {
+        throw new Error(`Kijiji returned error: ${apiError}`);
+    }
+
+    const adElement = $("ad\\:ad").get();
     if (adElement.length !== 1) {
         return null;
     }
@@ -44,20 +59,23 @@ export function scrapeAdElement(elem: cheerio.Element): AdInfo | null {
     const info = new AdInfo();
 
     const $ = cheerio.load(elem);
+    const adId = $("ad\\:ad").attr("id");
     const titleElem = $("ad\\:title");
-    const dateElem = $("ad\\:creation-date-time");
+    const dateElem = $("ad\\:start-date-time");
 
     // We can reasonably expect these to be present
-    if (titleElem.length === 0 || dateElem.length === 0) {
+    if (adId === undefined || titleElem.length === 0 || dateElem.length === 0) {
         return null;
     }
 
+    info.id = adId;
     info.title = titleElem.text();
     info.description = cleanAdDescription($("ad\\:description").html() || "");
     info.date = new Date(dateElem.text());
 
     $("pic\\:picture pic\\:link[rel='normal']").each((_i, item) => {
-        const url = item.attribs.href;
+        const cheerioItem = $(item);
+        const url = cheerioItem.attr("href");
         if (url) {
             info.images.push(getLargeImageURL(url));
         }
@@ -66,10 +84,11 @@ export function scrapeAdElement(elem: cheerio.Element): AdInfo | null {
 
 
     $("attr\\:attribute").each((_i, item) => {
-        const name = item.attribs.name;
-        const value = $(item).find("attr\\:value").text();
-        if (name && value) {
-            info.attributes[name] = castAttributeValue(item, value);
+        const cheerioItem = $(item);
+        const name = cheerioItem.attr("name");
+        const value = castAttributeValue(cheerioItem);
+        if (name && value !== undefined) {
+            info.attributes[name] = value;
         }
     });
 
@@ -99,7 +118,9 @@ export function scrapeAdElement(elem: cheerio.Element): AdInfo | null {
 
 /* Queries the Kijiji mobile API for the ad at the passed URL */
 export function scrapeAPI(url: string): Promise<AdInfo | null> {
-    const adIdMatch = url.match(AD_ID_REGEX);
+    const parsedURL = new URL(url);
+    const adIdMatch = parsedURL.pathname.match(AD_ID_REGEX);
+
     if (adIdMatch === null) {
         throw new Error("Invalid Kijiji ad URL. Ad URLs must end in /some-ad-id.");
     }

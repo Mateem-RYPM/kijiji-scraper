@@ -22,6 +22,7 @@ describe("Ad HTML scraper", () => {
             "http://example.com",
             {
                 headers: {
+                    "Accept-Language": "en-CA",
                     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:79.0) Gecko/20100101 Firefox/79.0"
                 }
             }
@@ -65,6 +66,9 @@ describe("Ad HTML scraper", () => {
         ${"Missing config property"} | ${createAdHTML({ abc: 123 })}
         ${"Missing adInfo property"} | ${createAdHTML({ config: {} })}
         ${"Missing VIP property"}    | ${createAdHTML({ config: { adInfo: {} } })}
+        ${"Missing ID"}              | ${createAdHTML({ config: { adInfo: {}, VIP: {} } })}
+        ${"Missing title"}           | ${createAdHTML({ config: { adInfo: {}, VIP: { adId: 1234 } } })}
+        ${"Missing date"}            | ${createAdHTML({ config: { adInfo: { title: "Test" }, VIP: { adId: 1234 } } })}
     `("should fail to scrape invalid HTML ($test)", async ({ html }) => {
         mockResponse(html);
 
@@ -74,20 +78,38 @@ describe("Ad HTML scraper", () => {
     });
 
     describe("valid markup", () => {
-        it("should scrape title", async () => {
+        it("should scrape ID", async () => {
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {
-                        title: "My ad title"
-                    },
-                    VIP: {}
+                    adInfo: { title: "My ad title" },
+                    VIP: {
+                        adId: 123,
+                        sortingDate: Date.now()
+                    }
                 }
             }));
 
             const adInfo = await scraper("http://example.com");
             validateRequest();
             expect(adInfo).not.toBeNull();
-            expect(adInfo!.title).toBe("My ad title");;
+            expect(adInfo!.id).toBe("123");
+        });
+
+        it("should scrape title", async () => {
+            mockResponse(createAdHTML({
+                config: {
+                    adInfo: { title: "My ad title" },
+                    VIP: {
+                        adId: 123,
+                        sortingDate: Date.now()
+                    }
+                }
+            }));
+
+            const adInfo = await scraper("http://example.com");
+            validateRequest();
+            expect(adInfo).not.toBeNull();
+            expect(adInfo!.title).toBe("My ad title");
         });
 
         it.each`
@@ -100,8 +122,10 @@ describe("Ad HTML scraper", () => {
 
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {},
+                    adInfo: { title: "My ad title" },
                     VIP: {
+                        adId: 123,
+                        sortingDate: Date.now(),
                         description
                     }
                 }
@@ -120,9 +144,10 @@ describe("Ad HTML scraper", () => {
             const date = new Date();
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {},
+                    adInfo: { title: "My ad title" },
                     VIP: {
-                        sortingDate: date
+                        adId: 123,
+                        sortingDate: date.getTime()
                     }
                 }
             }));
@@ -140,9 +165,13 @@ describe("Ad HTML scraper", () => {
             mockResponse(createAdHTML({
                 config: {
                     adInfo: {
+                        title: "My ad title",
                         sharingImageUrl: "some image URL"
                     },
-                    VIP: {}
+                    VIP: {
+                        adId: 123,
+                        sortingDate: Date.now()
+                    }
                 }
             }));
 
@@ -161,8 +190,10 @@ describe("Ad HTML scraper", () => {
 
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {},
+                    adInfo: { title: "My ad title" },
                     VIP: {
+                        adId: 123,
+                        sortingDate: Date.now(),
                         media: [
                             // Invalid
                             { type: "not-an-image", href: "http://example.org" },
@@ -192,40 +223,79 @@ describe("Ad HTML scraper", () => {
             getLargeImageURLSpy.mockRestore();
         });
 
-        it.each`
-            test               | value                         | expectedValue
-            ${"true boolean"}  | ${"true"}                     | ${true}
-            ${"false boolean"} | ${"false"}                    | ${false}
-            ${"integer"}       | ${"123"}                      | ${123}
-            ${"float"}         | ${"1.21"}                     | ${1.21}
-            ${"date"}          | ${"2020-09-06T20:52:47.474Z"} | ${new Date("2020-09-06T20:52:47.474Z")}
-            ${"string"}        | ${"hello"}                    | ${"hello"}
-        `("should scrape attribute ($test)", async ({ value, expectedValue }) => {
-            mockResponse(createAdHTML({
-                config: {
-                    adInfo: {},
-                    VIP: {
-                        adAttributes: [
-                            // Invalid
-                            {},
-                            { machineKey: 123 },
-                            { machineValue: 456 },
-                            { machineKey: 123, machineValue: 456 },
-                            { machineKey: "invalid", machineValue: 456 },
-                            { machineKey: 123, machineValue: "invalid" },
+        describe("attribute scraping", () => {
+            it.each`
+                test               | value                         | expectedValue
+                ${"undefined"}     | ${undefined}                  | ${undefined}
+                ${"true boolean"}  | ${"true"}                     | ${true}
+                ${"false boolean"} | ${"false"}                    | ${false}
+                ${"integer"}       | ${"123"}                      | ${123}
+                ${"float"}         | ${"1.21"}                     | ${1.21}
+                ${"date"}          | ${"2020-09-06T20:52:47.474Z"} | ${new Date("2020-09-06T20:52:47.474Z")}
+                ${"string"}        | ${"hello"}                    | ${"hello"}
+                ${"empty string"}  | ${""}                         | ${""}
+            `("should scrape attribute ($test)", async ({ value, expectedValue }) => {
+                mockResponse(createAdHTML({
+                    config: {
+                        adInfo: { title: "My ad title" },
+                        VIP: {
+                            adId: 123,
+                            sortingDate: Date.now(),
+                            adAttributes: [
+                                // Invalid
+                                {},
+                                { machineKey: 123 },
+                                { machineValue: 456 },
+                                { machineKey: 123, machineValue: 456 },
+                                { machineKey: "invalid", machineValue: 456 },
+                                { machineKey: 123, machineValue: "invalid" },
 
-                            // Valid
-                            { machineKey: "myAttr", machineValue: value }
-                        ]
+                                // Valid
+                                { machineKey: "myAttr", machineValue: value }
+                            ]
+                        }
                     }
-                }
-            }));
+                }));
 
-            const adInfo = await scraper("http://example.com");
-            validateRequest();
-            expect(adInfo).not.toBeNull();
-            expect(adInfo!.attributes).toEqual({
-                myAttr: expectedValue
+                const adInfo = await scraper("http://example.com");
+                validateRequest();
+                expect(adInfo).not.toBeNull();
+                expect(adInfo!.attributes).toEqual({
+                    myAttr: expectedValue
+                });
+            });
+
+            it.each`
+                test                               | value    | localeSpecificValues       | expectedValue
+                ${"localized integer"}             | ${"15"}  | ${{ en: { value: "1.5" }}} | ${1.5}
+                ${"localized float"}               | ${"2.3"} | ${{ en: { value: "23" }}}  | ${23}
+                ${"non-numeric localized integer"} | ${"4"}   | ${{ en: { value: "hi" }}}  | ${4}
+                ${"non-numeric localized float"}   | ${"8.1"} | ${{ en: { value: "bye" }}} | ${8.1}
+                ${"no locale-specific values"}     | ${"123"} | ${undefined}               | ${123}
+                ${"no English localization"}       | ${"456"} | ${{}}                      | ${456}
+                ${"no English value"}              | ${"789"} | ${{ en: {} }}              | ${789}
+            `("should scrape numeric attributes with localization ($test)", async ({ value, localeSpecificValues, expectedValue }) => {
+                mockResponse(createAdHTML({
+                    config: {
+                        adInfo: { title: "My ad title" },
+                        VIP: {
+                            adId: 123,
+                            sortingDate: Date.now(),
+                            adAttributes: [{
+                                machineKey: "myAttr",
+                                machineValue: value,
+                                localeSpecificValues
+                            }]
+                        }
+                    }
+                }));
+
+                const adInfo = await scraper("http://example.com");
+                validateRequest();
+                expect(adInfo).not.toBeNull();
+                expect(adInfo!.attributes).toEqual({
+                    myAttr: expectedValue
+                });
             });
         });
 
@@ -237,8 +307,10 @@ describe("Ad HTML scraper", () => {
         `("should scrape price ($test)", async ({ value, expected }) => {
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {},
+                    adInfo: { title: "My ad title" },
                     VIP: {
+                        adId: 123,
+                        sortingDate: Date.now(),
                         price: value
                     }
                 }
@@ -253,8 +325,10 @@ describe("Ad HTML scraper", () => {
         it("should scrape location", async () => {
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {},
+                    adInfo: { title: "My ad title" },
                     VIP: {
+                        adId: 123,
+                        sortingDate: Date.now(),
                         adLocation: "Some location"
                     }
                 }
@@ -269,8 +343,10 @@ describe("Ad HTML scraper", () => {
         it("should scrape type", async () => {
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {},
+                    adInfo: { title: "My ad title" },
                     VIP: {
+                        adId: 123,
+                        sortingDate: Date.now(),
                         adType: "Some type"
                     }
                 }
@@ -285,8 +361,10 @@ describe("Ad HTML scraper", () => {
         it("should scrape visits", async () => {
             mockResponse(createAdHTML({
                 config: {
-                    adInfo: {},
+                    adInfo: { title: "My ad title" },
                     VIP: {
+                        adId: 123,
+                        sortingDate: Date.now(),
                         visitCounter: 12345
                     }
                 }

@@ -13,6 +13,7 @@ type ResultInfo = {
     description: string;
     imageAttributes: string;
     datePosted: string;
+    id: string;
 };
 
 const defaultResultInfo: ResultInfo = {
@@ -22,7 +23,8 @@ const defaultResultInfo: ResultInfo = {
     path: "/someAd",
     description: "",
     imageAttributes: "",
-    datePosted: ""
+    datePosted: "",
+    id: ""
 };
 
 // Result pages in most categories use this markup
@@ -32,7 +34,8 @@ const createStandardResultHTML = (info: Partial<ResultInfo>): string => {
     return `
         <div class="search-item
             ${info.isFeatured ? "top-feature" : "regular-ad"}
-            ${info.isThirdParty ? "third-party" : ""}">
+            ${info.isThirdParty ? "third-party" : ""}"
+            ${info.id ? `data-listing-id="${info.id}"` : ""}>
             <div class="clearfix">
                 <div class="left-col">
                     <div class="image">
@@ -67,7 +70,8 @@ const createServiceResultHTML = (info: Partial<ResultInfo>): string => {
     return `
         <table class="
             ${info.isFeatured ? "top-feature" : "regular-ad"}
-            ${info.isThirdParty ? "third-party" : ""}">
+            ${info.isThirdParty ? "third-party" : ""}"
+            ${info.id ? `data-listing-id="${info.id}"` : ""}>
             <tbody>
                 <tr>
                     <td class="description">
@@ -116,6 +120,7 @@ describe.each`
                 expect.any(String),
                 {
                     headers: {
+                        "Accept-Language": "en-CA",
                         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:79.0) Gecko/20100101 Firefox/79.0"
                     }
                 }
@@ -285,6 +290,16 @@ describe.each`
                 );
                 validateRequestHeaders();
             }
+        });
+
+        it("should scrape ID", async () => {
+            fetchSpy.mockResolvedValueOnce({ text: () => createResultHTML({ id: "123" }) });
+
+            const { pageResults } = await search();
+            validateRequestHeaders();
+            expect(pageResults).toEqual([expect.objectContaining({
+                id: "123",
+            })]);
         });
 
         it("should scrape title", async () => {

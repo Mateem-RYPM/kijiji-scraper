@@ -19,12 +19,18 @@ describe("Ad API scraper", () => {
         });
     };
 
+    type MockAdAttribute = {
+        value: any;
+        localizedValue?: string;
+    };
+
     type MockAdInfo = {
         title?: string;
         description?: string;
         date?: Date;
         images?: string[];
-        attributes?: any,
+        attributes?: { [name: string]: MockAdAttribute };
+        id?: string;
         price?: string;
         location?: string;
         type?: string;
@@ -47,16 +53,23 @@ describe("Ad API scraper", () => {
         );
     }
 
-    const serializeAttribute = (name: string, value: any) => {
+    const serializeAttribute = (name: string, attr: MockAdAttribute) => {
+        const { value, localizedValue } = attr;
+
         return `
             <attr:attribute
                 name="${name}"
-                ${typeof value === "boolean" ? `localized-label=${value ? "Yes" : "No"}` : ""}
                 ${value instanceof Date ? 'type="DATE"' : ""}
             >
                 ${value !== undefined ?
                     `
-                        <attr:value>
+                        <attr:value
+                            ${localizedValue ?
+                                `localized-label=${localizedValue}`
+                            : typeof value === "boolean" ?
+                                `localized-label=${value ? "Yes" : "No"}`
+                            : ""}
+                        >
                         ${
                             value instanceof Date ? value.toISOString() :
                             typeof value === "string" ? value :
@@ -72,10 +85,10 @@ describe("Ad API scraper", () => {
 
     const createAdXML = (info: MockAdInfo) => {
         return `
-            <ad:ad>
+            <ad:ad ${info.id ? `id="${info.id}"` : ""}>
                 ${info.title ? `<ad:title>${info.title}</ad:title>` : ""}
                 ${info.description ? `<ad:description>${info.description}</ad:description>` : ""}
-                ${info.date ? `<ad:creation-date-time>${info.date.toISOString()}</ad:creation-date-time>` : ""}
+                ${info.date ? `<ad:start-date-time>${info.date.toISOString()}</ad:start-date-time>` : ""}
                 <pic:pictures>
                     ${(info.images ? info.images.map(url => `<pic:picture><pic:link rel="normal" href="${url}"></pic:picture>`) : []).join("\n")}
                 </pic:pictures>
@@ -107,20 +120,12 @@ describe("Ad API scraper", () => {
         }
     });
 
-    it("should fail with invalid URL", async () => {
-        try {
-            await scraper("http://example.com")
-            fail("Expected error for invalid URL");
-        } catch (err) {
-            expect(err.message).toBe("Invalid Kijiji ad URL. Ad URLs must end in /some-ad-id.");
-        }
-    });
-
     it.each`
         test                     | xml
         ${"Bad markup"}          | ${"Bad markup"}
-        ${"Missing title"}       | ${createAdXML({})}
-        ${"Missing date"}        | ${createAdXML({ title: "My ad title" })}
+        ${"Missing id"}          | ${createAdXML({})}
+        ${"Missing title"}       | ${createAdXML({ id: "123" })}
+        ${"Missing date"}        | ${createAdXML({ id: "123", title: "My ad title" })}
     `("should fail to scrape invalid XML ($test)", async ({ xml }) => {
         mockResponse(xml);
 
@@ -129,9 +134,69 @@ describe("Ad API scraper", () => {
         expect(adInfo).toBeNull();
     });
 
+    it("should report API error", async () => {
+        mockResponse(`
+            <api-errors>
+                <api-error>
+                    <message>Scraped knee!</message>
+                </api-error>
+            </api-errors>
+        `);
+
+        try {
+            await scraper(FAKE_VALID_AD_URL);
+            fail("Expected API error");
+        } catch (error) {
+            validateRequest();
+            expect(error.message).toBe("Kijiji returned error: Scraped knee!");
+        }
+    });
+
+    describe("URL parsing", () => {
+        it("should fail with invalid URL", async () => {
+            try {
+                await scraper("not a URL")
+                fail("Expected error for invalid URL");
+            } catch (err) {
+                expect(err.message).toBe("Invalid URL: not a URL");
+            }
+        });
+
+        it("should fail with URL that does not end in ad ID", async () => {
+            try {
+                await scraper("http://example.com")
+                fail("Expected error for invalid URL");
+            } catch (err) {
+                expect(err.message).toBe("Invalid Kijiji ad URL. Ad URLs must end in /some-ad-id.");
+            }
+        });
+
+        it("should ignore query string", async () => {
+            mockResponse(createAdXML({}));
+
+            await scraper(`${FAKE_VALID_AD_URL}?key=value`);
+            validateRequest();
+        });
+    });
+
     describe("valid markup", () => {
+        it("should scrape ID", async () => {
+            mockResponse(createAdXML({
+                id: "123",
+                title: "My ad title",
+                description: "My ad description",
+                date: new Date()
+            }));
+
+            const adInfo = await scraper(FAKE_VALID_AD_URL);
+            validateRequest();
+            expect(adInfo).not.toBeNull();
+            expect(adInfo!.id).toBe("123");
+        });
+
         it("should scrape title", async () => {
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date: new Date()
@@ -152,6 +217,7 @@ describe("Ad API scraper", () => {
             cleanAdDescriptionSpy.mockReturnValueOnce("Clean description");
 
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description,
                 date: new Date()
@@ -169,6 +235,7 @@ describe("Ad API scraper", () => {
         it("should scrape date", async () => {
             const date = new Date();
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date
@@ -191,6 +258,7 @@ describe("Ad API scraper", () => {
             getLargeImageURLSpy.mockImplementation(url => url + "_large");
 
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date: new Date(),
@@ -210,6 +278,7 @@ describe("Ad API scraper", () => {
             getLargeImageURLSpy.mockImplementation(url => url + "_large");
 
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date: new Date(),
@@ -237,30 +306,59 @@ describe("Ad API scraper", () => {
             getLargeImageURLSpy.mockRestore();
         });
 
-        it.each`
-            test               | value
-            ${"undefined"}     | ${undefined}
-            ${"true boolean"}  | ${true}
-            ${"false boolean"} | ${false}
-            ${"integer"}       | ${123}
-            ${"float"}         | ${1.21}
-            ${"date"}          | ${new Date("2020-09-06T20:52:47.474Z")}
-            ${"string"}        | ${"hello"}
-        `("should scrape attribute ($test)", async ({ value }) => {
-            mockResponse(createAdXML({
-                title: "My ad title",
-                description: "My ad description",
-                date: new Date(),
-                attributes: {
-                    myAttr: value
-                }
-            }));
+        describe("attribute scraping", () => {
+            it.each`
+                test               | value
+                ${"undefined"}     | ${undefined}
+                ${"true boolean"}  | ${true}
+                ${"false boolean"} | ${false}
+                ${"integer"}       | ${123}
+                ${"float"}         | ${1.21}
+                ${"date"}          | ${new Date("2020-09-06T20:52:47.474Z")}
+                ${"string"}        | ${"hello"}
+                ${"empty string"}  | ${""}
+            `("should scrape attribute ($test)", async ({ value }) => {
+                mockResponse(createAdXML({
+                    id: "123",
+                    title: "My ad title",
+                    description: "My ad description",
+                    date: new Date(),
+                    attributes: {
+                        myAttr: { value }
+                    }
+                }));
 
-            const adInfo = await scraper(FAKE_VALID_AD_URL);
-            validateRequest();
-            expect(adInfo).not.toBeNull();
-            expect(adInfo!.attributes).toEqual({
-                myAttr: value
+                const adInfo = await scraper(FAKE_VALID_AD_URL);
+                validateRequest();
+                expect(adInfo).not.toBeNull();
+                expect(adInfo!.attributes).toEqual({
+                    myAttr: value
+                });
+            });
+
+            it.each`
+                test                               | attr                                      | expected
+                ${"localized integer"}             | ${{ value: 15, localizedValue: "1.5" }}}  | ${1.5}
+                ${"localized float"}               | ${{ value: 2.3, localizedValue: "23" }}}  | ${23}
+                ${"non-numeric localized integer"} | ${{ value: 4, localizedValue: "hi" }}}    | ${4}
+                ${"non-numeric localized float"}   | ${{ value: 8.1, localizedValue: "bye" }}} | ${8.1}
+            `("should scrape numeric attributes with localization ($test)", async ({ attr, expected }) => {
+                mockResponse(createAdXML({
+                    id: "123",
+                    title: "My ad title",
+                    description: "My ad description",
+                    date: new Date(),
+                    attributes: {
+                        myAttr: attr
+                    }
+                }));
+
+                const adInfo = await scraper(FAKE_VALID_AD_URL);
+                validateRequest();
+                expect(adInfo).not.toBeNull();
+                expect(adInfo!.attributes).toEqual({
+                    myAttr: expected
+                });
             });
         });
 
@@ -271,6 +369,7 @@ describe("Ad API scraper", () => {
             ${"with amount"}        | ${1.23}      | ${1.23}
         `("should scrape price ($test)", async ({ value, expected }) => {
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date: new Date(),
@@ -285,6 +384,7 @@ describe("Ad API scraper", () => {
 
         it("should scrape location", async () => {
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date: new Date(),
@@ -299,6 +399,7 @@ describe("Ad API scraper", () => {
 
         it("should scrape type", async () => {
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date: new Date(),
@@ -313,6 +414,7 @@ describe("Ad API scraper", () => {
 
         it("should scrape visits", async () => {
             mockResponse(createAdXML({
+                id: "123",
                 title: "My ad title",
                 description: "My ad description",
                 date: new Date(),

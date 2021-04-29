@@ -8,15 +8,26 @@ import { BANNED, HTML_REQUEST_HEADERS } from "../constants";
 import { cleanAdDescription, getLargeImageURL, isNumber } from "../helpers";
 import { AdInfo } from "../scraper";
 
-function castAttributeValue(value: string): boolean | number | Date | string {
-    // Kijiji only returns strings. Convert to appropriate types
-    value = value.trim();
+function castAttributeValue(attr: any): boolean | number | Date | string | undefined {
+    let value = attr.machineValue;
+    if (typeof value !== "string") {
+        return undefined;
+    }
 
+    value = value.trim();
+    const localizedValue = (attr.localeSpecificValues?.en?.value || "").toLowerCase();
+
+    // Kijiji only returns strings. Convert to appropriate types
     if (value.toLowerCase() === "true") {
         return true;
     } else if (value.toLowerCase() === "false") {
         return false;
     } else if (isNumber(value)) {
+        // Numeric values are sometimes inaccurate. For example, numberbathrooms
+        // is multipled by 10. Prefer localized version if it is also a number.
+        if (isNumber(localizedValue)) {
+            return Number(localizedValue);
+        }
         return Number(value);
     } else if (!isNaN(Date.parse(value))) {
         return new Date(value);
@@ -42,9 +53,20 @@ function parseResponseHTML(html: string): AdInfo | null {
     }
 
     adData = adData.config;
-    info.title = adData.adInfo.title;
+
+    const adId = adData.VIP.adId;
+    const adTitle = adData.adInfo.title;
+    const adDateMs = adData.VIP.sortingDate;
+
+    // We can reasonably expect these to be present
+    if (adId === undefined || adTitle === undefined || adDateMs === undefined) {
+        return null;
+    }
+
+    info.id = adId.toString();
+    info.title = adTitle;
     info.description = cleanAdDescription(adData.VIP.description || "");
-    info.date = new Date(adData.VIP.sortingDate);
+    info.date = new Date(adDateMs);
     info.image = getLargeImageURL(adData.adInfo.sharingImageUrl || "");
 
     (adData.VIP.media || []).forEach((m: any) => {
@@ -53,8 +75,10 @@ function parseResponseHTML(html: string): AdInfo | null {
         }
     });
     (adData.VIP.adAttributes || []).forEach((a: any) => {
-        if (typeof a.machineKey === "string" && typeof a.machineValue === "string") {
-            info.attributes[a.machineKey] = castAttributeValue(a.machineValue);
+        const name = a.machineKey;
+        const value = castAttributeValue(a);
+        if (typeof name === "string" && value !== undefined) {
+            info.attributes[name] = value;
         }
     });
 
