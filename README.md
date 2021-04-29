@@ -31,10 +31,11 @@ This class encapsulates a Kijiji ad and its properties. It also handles retrievi
 |`images`      |String[]|Array of URLs of the ad's images                     |
 |`attributes`  |Object  |Properties specific to the category of the scraped ad|
 |`url`         |String  |The ad's url                                         |
+|`id`          |String  |Unique identifier of the ad                          |
 
 The image URL given in `image` is the featured image for the ad. The image URLs given in `images` are all of the images associated with the ad.
 
-**Note:** If the ad has not been scraped automatically, some of these properties may be null or empty. This happens when an `Ad` object is created manually using the constructor or by performing a search with the `scrapeResultDetails` option set to `false`. See the [`Ad.isScraped()`](#adisscraped) and [`Ad.scrape()`](#adscrapeoptions-callback) method documentation below for more information on this.
+> **Note:** If the ad has not been scraped automatically, some of these properties may be null or empty. This happens when an `Ad` object is created manually using the constructor or by performing a search with the `scrapeResultDetails` option set to `false`. See the [`Ad.isScraped()`](#adisscraped) and [`Ad.scrape()`](#adscrapeoptions-callback) method documentation below for more information on this.
 
 #### Methods
 
@@ -57,13 +58,13 @@ Returns a `Promise` which resolves to an `Ad` object containing the ad's informa
 const kijiji = require("kijiji-scraper");
 
 // Scrape using returned promise
-kijiji.Ad.Get("<Kijiji ad URL>").then(function(ad) {
+kijiji.Ad.Get("<Kijiji ad URL>").then(ad => {
     // Use the ad object
     console.log(ad.title);
 }).catch(console.error);
 
 // Scrape using optional callback paramater
-kijiji.Ad.Get("<Kijiji ad URL>", function(err, ad) {
+kijiji.Ad.Get("<Kijiji ad URL>", {}, (err, ad) => {
     if (!err) {
         // Use the ad object
         console.log(ad.title);
@@ -143,7 +144,7 @@ ad.scrape().then(() => {
 }).catch(console.error);
 
 // Scrape using optional callback paramater
-ad.scrape((err) => {
+ad.scrape({}, err => {
     if (!err) {
         // Use the ad object
         console.log(ad.isScraped()); // true
@@ -206,7 +207,7 @@ Searches are performed using the `search()` function:
             |------------|------|-------------------------------------------------------------|
             |`minPrice`  |Number|Minimum price of returned items                              |
             |`maxPrice`  |Number|Maximum price of returned items                              |
-            |`adType`    |String|Type of ad (`"OFFER"`, `"WANTED"`, or `undefined` - for both)|
+            |`adType`    |String|Type of ad (`"OFFER"`, `"WANTED"`, or `undefined` - for both). If using the `"api"` `scraperType` then `"OFFERED"` must be used instead of `"OFFER"`.|
 
         * Some known parameters available when using the `"api"` (default) `scraperType`:
 
@@ -231,8 +232,8 @@ Searches are performed using the `search()` function:
     |Option                |Type   |Default Value|Description|
     |----------------------|-------|-------------|-----------|
     |`pageDelayMs`         |Integer|`1000`       |Amount of time in milliseconds to wait between scraping each result page. This is useful to avoid detection and bans from Kijiji.|
-    |`minResults`          |Integer|`20`         |Minimum number of ads to fetch (if available). Note that Kijiji results are returned in pages of up to 20 ads, so if you set this to something like 29, up to 40 results may be retrieved.|
-    |`maxResults`          |Integer|`-1`         |Maximum number of ads to return. This simply removes excess results from the array that is returned (i.e., if `minResults` is 40 and `maxResults` is 7, 40 results will be fetched from Kijiji and the last 33 will be discarded). A negative value indicates no limit.|
+    |`minResults`          |Integer|`20`         |Minimum number of ads to fetch (if available). Note that Kijiji results are returned in pages of up to 20 ads, so if you set this to something like 29, up to 40 results may be retrieved. A negative value indicates no limit (retrieve as many ads as possible). If negative or not specified and `maxResults > 0`, `minResults` will take on the value of `maxResults`.|
+    |`maxResults`          |Integer|`-1`         |Maximum number of ads to return. This simply removes excess results from the array that is returned (i.e., if `minResults` is 40 and `maxResults` is 7, 40 results will be fetched from Kijiji and the last 33 will be discarded). A negative value indicates no limit. If greater than zero and `minResults` is unspecified, or if `minResults` is negative, this value will also be used for `minResults`.|
     |`scrapeResultDetails` |Boolean|`true`       |When using the HTML scraper, the details of each query result are scraped in separate, subsequent requests by default. To suppress this behavior and return only the data retrieved by the initial query, set this option to `false`. Note that ads will lack some information if you do this and `Ad.isScraped()` will return `false` until `Ad.scrape()` is called to retrieve the missing information. This option does nothing when using the API scraper (default).|
     |`resultDetailsDelayMs`|Integer|`500`        |When `scrapeResultDetails` is `true`, the amount of time in milliseconds to wait in between each request for result details. A value of 0 will cause all such requests to be made at the same time. This is useful to avoid detection and bans from Kijiji.|
 
@@ -241,6 +242,8 @@ Searches are performed using the `search()` function:
 ###### Return value
 
 Returns a `Promise` which resolves to an array of search result `Ad` objects.
+
+> **Note:** Ads may not appear in search results (or the Kijiji website, for that matter) for a short time after they are created (usually no more than 1 minute). This means that when searching, you are not guaranteed to receive extremely recent ads. Such ads will be returned in future searches but their `date` property will reflect the time that they were actually created.
 
 ##### Example usage
 ```js

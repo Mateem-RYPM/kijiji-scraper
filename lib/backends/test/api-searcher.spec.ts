@@ -17,16 +17,17 @@ describe("Search result API scraper", () => {
 
     type MockAdInfo = {
         url?: string;
+        id?: string;
         title?: string;
         date?: Date;
     };
 
     const createAdXML = (info: MockAdInfo) => {
         return `
-            <ad:ad>
+            <ad:ad ${info.id ? `id="${info.id}"` : ""}>
                 ${info.url ? `<ad:link rel="self-public-website" href="${info.url}"></ad:link>` : ""}
                 ${info.title ? `<ad:title>${info.title}</ad:title>` : ""}
-                ${info.date ? `<ad:creation-date-time>${info.date.toISOString()}</ad:creation-date-time>` : ""}
+                ${info.date ? `<ad:start-date-time>${info.date.toISOString()}</ad:start-date-time>` : ""}
             </ad:ad>
         `;
     };
@@ -107,23 +108,6 @@ describe("Search result API scraper", () => {
     });
 
     describe("result page scraping", () => {
-        it("should throw error if results page is invalid", async () => {
-            fetchSpy.mockResolvedValueOnce({ text: () => createAdXML({}) });
-
-            try {
-                await search();
-                fail("Expected error while scraping results page");
-            } catch (err) {
-                expect(err.message).toBe(
-                    "Result ad has no URL. It is possible that Kijiji changed their " +
-                    "markup. If you believe this to be the case, please open an issue " +
-                    "at: https://github.com/mwpenny/kijiji-scraper/issues"
-                );
-                validateRequestHeaders();
-                expect(scrapeSpy).not.toBeCalled();
-            }
-        });
-
         it("should throw error if scraping fails", async () => {
             fetchSpy.mockResolvedValueOnce({ text: () => createAdXML({ url: "http://example.com" }) });
 
@@ -144,11 +128,13 @@ describe("Search result API scraper", () => {
         it("should scrape each result ad", async () => {
             const ad1Info = {
                 url: "http://example.com/1",
+                id: "1",
                 title: "Ad 1",
                 date: new Date(123)
             };
             const ad2Info = {
                 url: "http://example.com/2",
+                id: "2",
                 title: "Ad 2",
                 date: new Date(456)
             };
@@ -180,11 +166,12 @@ describe("Search result API scraper", () => {
         `("should detect last page (isLastPage=$isLastPage)", async ({ isLastPage }) => {
             let mockResponse = createAdXML({
                 url: "http://example.com",
+                id: "123",
                 title: "My ad",
                 date: new Date()
             });
             if (!isLastPage) {
-                mockResponse += '<types:link rel="next" href="http://example.com/nextpage"/>';
+                mockResponse += '<types:paging><types:link rel="next" href="http://example.com/nextpage"/></types:paging>';
             }
             fetchSpy.mockResolvedValueOnce({ text: () => mockResponse });
 
@@ -200,6 +187,22 @@ describe("Search result API scraper", () => {
             const { pageResults } = await search();
             validateRequestHeaders();
             expect(pageResults.length).toBe(0);
+        });
+
+        it("should skip ads with no URL", async () => {
+            const adInfo = {
+                url: "http://example.com/1",
+                id: "1",
+                title: "Ad 1",
+                date: new Date(123)
+            };
+            const ad = createAdXML(adInfo).trim();
+
+            fetchSpy.mockResolvedValueOnce({ text: () => createAdXML({}) + ad });
+
+            const { pageResults } = await search();
+            validateRequestHeaders();
+            expect(pageResults).toEqual([expect.objectContaining(adInfo)]);
         });
     });
 });

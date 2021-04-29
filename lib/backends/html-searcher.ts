@@ -66,6 +66,8 @@ function parseResultsHTML(html: string): Ad[] {
         const path = $(item).find("a.title").attr("href");
         const url = KIJIJI_BASE_URL + path;
         const info: Partial<AdInfo> = {
+            id: $(item).data("listing-id")?.toString() || "",
+
             title: $(item).find("a.title").text().trim(),
 
             image: (
@@ -134,6 +136,9 @@ export class HTMLSearcher {
 
     /* Retrieves one page of Kijiji search results */
     async getPageResults(params: ResolvedSearchParameters, pageNum: number): Promise<PageResults> {
+        /* When searching with formSubmit = true, Kijiji will redirect us to a URL
+           that the UI uses to encode search parameters. This URL can be modified to
+           specify the page number (the only reliable way I have found to do so) */
         const firstResultPageURL = await this.getFirstResultPageURL(params);
 
         // Specify page number. It must be the last path component of the URL
