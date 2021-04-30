@@ -12,17 +12,18 @@ import { API_REQUEST_HEADERS, BANNED, POSSIBLE_BAD_MARKUP } from "../constants";
 import { PageResults, ResolvedSearchParameters } from "../search";
 
 const API_SEARCH_ENDPOINT = "https://mingle.kijiji.ca/api/ads";
-const LAST_PAGE_REGEX = /<types:link rel="next" href=".+"\/>/;
 
-function parseResultsXML(xml: string): Ad[] {
+function parseResultsXML(xml: string): PageResults {
     const adResults: Ad[] = [];
     const $ = cheerio.load(xml);
+    const isLastPage = $("types\\:paging types\\:link[rel='next']").length === 0;
 
     // Get info for each ad
     $("ad\\:ad").each((_i, item) => {
         const url = $(item).find("ad\\:link[rel='self-public-website']").attr("href");
         if (!url) {
-            throw new Error(`Result ad has no URL. ${POSSIBLE_BAD_MARKUP}`);
+            // Top and third-party ads have no Kijiji URL
+            return;
         }
 
         const info = scrapeAdElement(item);
@@ -32,7 +33,10 @@ function parseResultsXML(xml: string): Ad[] {
         adResults.push(new Ad(url, info, true));
     });
 
-    return adResults;
+    return {
+        pageResults: adResults,
+        isLastPage
+    };
 }
 
 /**
@@ -55,9 +59,6 @@ export class APISearcher {
                 }
                 return res.text();
             })
-            .then(body => ({
-                pageResults: parseResultsXML(body),
-                isLastPage: body.match(LAST_PAGE_REGEX) === null
-            }));
+            .then(parseResultsXML);
     }
 }
